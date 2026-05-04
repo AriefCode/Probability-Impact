@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Probability / Impact Matrix</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] },
+    }
+  }
+}
+</script>
+<style>
+  body { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .risk-card { transition: box-shadow .15s, border-color .15s; }
+  .risk-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,.08); border-color: #cbd5e1; }
+  .modal-enter { animation: mEnter .18s ease; }
+  @keyframes mEnter { from { opacity:0; transform:scale(.96) translateY(-6px); } to { opacity:1; transform:none; } }
+  input:focus, select:focus, textarea:focus { outline:none; box-shadow:0 0 0 3px rgba(99,102,241,.15); border-color:#6366f1 !important; }
+  ::-webkit-scrollbar { height:6px; width:6px; }
+  ::-webkit-scrollbar-track { background:#f1f5f9; border-radius:3px; }
+  ::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
+  @media print {
+    .no-print { display:none !important; }
+  }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+<!-- Header -->
+<header class="bg-white border-b border-slate-200 sticky top-0 z-40 no-print">
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
+    <div class="flex items-center gap-3">
+      <div class="grid grid-cols-2 gap-0.5 w-7 h-7 flex-shrink-0">
+        <div class="rounded-sm bg-red-400"></div>
+        <div class="rounded-sm bg-amber-400"></div>
+        <div class="rounded-sm bg-amber-400"></div>
+        <div class="rounded-sm bg-yellow-400"></div>
+      </div>
+      <div>
+        <div class="font-bold text-slate-900 text-[15px] leading-tight">Probability / Impact Matrix</div>
+        <div class="text-xs text-slate-400 font-medium">Risk Management Tool</div>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+      <button onclick="printMatrix()" class="text-sm font-semibold text-slate-500 hover:text-slate-800 border border-slate-200 hover:border-slate-300 rounded-lg px-3 py-1.5 transition-colors bg-white">Print</button>
+      <button onclick="exportCSV()" class="text-sm font-semibold text-slate-500 hover:text-slate-800 border border-slate-200 hover:border-slate-300 rounded-lg px-3 py-1.5 transition-colors bg-white">Export CSV</button>
+      <button onclick="switchTab('form')" class="text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg px-4 py-1.5 transition-colors">+ Tambah Risiko</button>
+    </div>
+  </div>
+</header>
+
+<div class="max-w-7xl mx-auto px-6 py-6">
+
+  <!-- Tabs -->
+  <div class="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit mb-6 no-print">
+    <button id="tab-btn-matrix" onclick="switchTab('matrix')" class="tab-btn px-5 py-2 rounded-lg text-sm font-semibold transition-all">Lihat Matrix</button>
+    <button id="tab-btn-form"   onclick="switchTab('form')"   class="tab-btn px-5 py-2 rounded-lg text-sm font-semibold transition-all">Tambah Risiko</button>
+  </div>
+
+  <!-- ── MATRIX VIEW ── -->
+  <div id="sec-matrix" class="hidden">
+
+    <!-- Stats -->
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-3 no-print">
+      <div class="flex gap-2 flex-wrap">
+        <div class="bg-white border border-slate-200 rounded-xl px-4 py-2.5 flex items-center gap-2">
+          <div class="w-2 h-2 rounded-full bg-indigo-500"></div>
+          <span class="text-sm text-slate-500 font-medium">Total</span>
+          <span class="text-sm font-bold text-slate-800" id="stat-total">0</span>
+        </div>
+        <div class="bg-red-50 border border-red-100 rounded-xl px-4 py-2.5 flex items-center gap-2">
+          <div class="w-2 h-2 rounded-full bg-red-400"></div>
+          <span class="text-sm text-red-600 font-medium">Low Impact</span>
+          <span class="text-sm font-bold text-red-700" id="stat-low">0</span>
+        </div>
+        <div class="bg-amber-50 border border-amber-100 rounded-xl px-4 py-2.5 flex items-center gap-2">
+          <div class="w-2 h-2 rounded-full bg-amber-400"></div>
+          <span class="text-sm text-amber-700 font-medium">Medium</span>
+          <span class="text-sm font-bold text-amber-800" id="stat-med">0</span>
+        </div>
+        <div class="bg-yellow-50 border border-yellow-100 rounded-xl px-4 py-2.5 flex items-center gap-2">
+          <div class="w-2 h-2 rounded-full bg-yellow-400"></div>
+          <span class="text-sm text-yellow-700 font-medium">High Impact</span>
+          <span class="text-sm font-bold text-yellow-800" id="stat-high">0</span>
+        </div>
+      </div>
+      <button onclick="clearAll()" class="text-sm text-red-400 hover:text-red-600 font-medium transition-colors">Hapus semua</button>
+    </div>
+
+    <!-- Title bar -->
+    <div class="bg-slate-800 text-white font-bold text-[15px] px-5 py-3 rounded-t-xl tracking-wide">
+      Probability/Impact Matrix
+    </div>
+
+    <!-- Table -->
+    <div class="overflow-x-auto rounded-b-xl border border-slate-200 border-t-0 shadow-sm">
+      <table class="w-full min-w-[680px] bg-white" style="table-layout:fixed">
+        <colgroup>
+          <col style="width:155px">
+          <col><col><col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th class="bg-white border-b border-r border-slate-100 p-0"></th>
+            <th class="p-0 border-b border-r border-slate-100">
+              <div class="bg-red-500 text-white text-sm font-bold px-4 py-3 text-center">Low Impact</div>
+            </th>
+            <th class="p-0 border-b border-r border-slate-100">
+              <div class="bg-amber-500 text-white text-sm font-bold px-4 py-3 text-center">Medium Impact</div>
+            </th>
+            <th class="p-0 border-b border-slate-100">
+              <div class="bg-yellow-400 text-yellow-900 text-sm font-bold px-4 py-3 text-center">High Impact</div>
+            </th>
+          </tr>
+        </thead>
+        <tbody id="matrix-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── FORM VIEW ── -->
+  <div id="sec-form" class="hidden">
+    <div class="bg-white border border-slate-200 rounded-2xl p-6 max-w-2xl shadow-sm">
+      <h2 class="text-base font-bold text-slate-800 mb-5">Tambah Risiko Baru</h2>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Kategori Risiko</label>
+          <input id="f-cat" type="text" placeholder="cth: Keamanan Sistem, Waktu, Orang, Lokasi..."
+            class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 bg-white">
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Probabilitas</label>
+            <select id="f-prob" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 bg-white cursor-pointer">
+              <option value="low">Low Probability</option>
+              <option value="med" selected>Medium Probability</option>
+              <option value="high">High Probability</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Impact</label>
+            <select id="f-impact" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 bg-white cursor-pointer">
+              <option value="low">Low Impact</option>
+              <option value="med" selected>Medium Impact</option>
+              <option value="high">High Impact</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Deskripsi Risiko</label>
+          <textarea id="f-desc" rows="3" placeholder="Jelaskan risiko secara singkat dan jelas..."
+            class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 bg-white resize-none"></textarea>
+        </div>
+        <div class="flex items-center gap-3 pt-1">
+          <button onclick="addRisk()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors">+ Tambah Risiko</button>
+          <button onclick="switchTab('matrix')" class="border border-slate-200 hover:border-slate-300 text-slate-500 hover:text-slate-700 text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors">Kembali</button>
+          <span class="text-xs text-slate-400">Ctrl+Enter untuk simpan</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Edit Modal -->
+<div id="modal-backdrop" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center p-4" onclick="closeModalBg(event)">
+  <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md modal-enter" onclick="event.stopPropagation()">
+    <h3 class="text-base font-bold text-slate-800 mb-5">Edit Risiko</h3>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Kategori</label>
+        <input id="e-cat" type="text" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Probabilitas</label>
+          <select id="e-prob" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 cursor-pointer">
+            <option value="low">Low</option><option value="med">Medium</option><option value="high">High</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Impact</label>
+          <select id="e-impact" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 cursor-pointer">
+            <option value="low">Low</option><option value="med">Medium</option><option value="high">High</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Deskripsi</label>
+        <textarea id="e-desc" rows="3" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 resize-none"></textarea>
+      </div>
+      <div class="flex gap-3 pt-1">
+        <button onclick="saveEdit()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors">Simpan</button>
+        <button onclick="closeModal()" class="border border-slate-200 text-slate-500 hover:text-slate-700 text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors">Batal</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="fixed bottom-6 right-6 bg-slate-800 text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg z-50 opacity-0 pointer-events-none translate-y-2 transition-all duration-200">
+  Tersimpan
+</div>
+
+<script>
+const ROWS = ['low','med','high'];
+const ROW_LABELS = { low:'Low Probability', med:'Medium Probability', high:'High Probability' };
+const COL_LABELS  = { low:'Low Impact', med:'Medium Impact', high:'High Impact' };
+
+const IMP_STYLE = {
+  low:  { topBorder:'border-t-2 border-t-red-400',    tag:'bg-red-100 text-red-700' },
+  med:  { topBorder:'border-t-2 border-t-amber-400',  tag:'bg-amber-100 text-amber-700' },
+  high: { topBorder:'border-t-2 border-t-yellow-400', tag:'bg-yellow-100 text-yellow-700' },
+};
+
+let risks = [], editIdx = null;
+
+const DEFAULT = [
+  {cat:'Pemasaran',prob:'low',impact:'low',desc:'Keterbatasan sistem dari sistem yang ada yang sudah menggunakan vendor khusus'},
+  {cat:'Teknologi',prob:'low',impact:'low',desc:'Banyak pro dan kontra di masing-masing teknologi yang digunakan dalam sistem POS'},
+  {cat:'Struktur',prob:'low',impact:'med',desc:'Kurang kepuasan pengguna karena kurang paham dalam menggunakan sistem yang sudah complete'},
+  {cat:'Keamanan Sistem',prob:'low',impact:'high',desc:'Mendapat serangan dalam bentuk apapun ke sistem'},
+  {cat:'Lokasi',prob:'med',impact:'low',desc:'Lokasi implementasi yang jauh dan sulit di jangkau dalam waktu tertentu'},
+  {cat:'Scope',prob:'med',impact:'med',desc:'Revisi oleh user yang berubah selama pembangunan project dan testing'},
+  {cat:'Keamanan Sistem',prob:'med',impact:'high',desc:'Kekurangan tools untuk pengamanan data'},
+  {cat:'Keamanan Sistem',prob:'med',impact:'high',desc:'Tidak ada backup database'},
+  {cat:'Hardware',prob:'med',impact:'high',desc:'Terjadi kerusakan terhadap laptop atau tablet yang menjadi media penggunaan sistem'},
+  {cat:'Lokasi',prob:'high',impact:'low',desc:'Kesusahan pelaporan progress sistem karena lokasi development dengan customer jauh'},
+  {cat:'Waktu',prob:'high',impact:'med',desc:'Pengimplementasian ke lokasi yang butuh waktu banyak'},
+  {cat:'Waktu',prob:'high',impact:'med',desc:'Kekurangan waktu menyelesaikan revisi dari user'},
+  {cat:'Biaya',prob:'high',impact:'med',desc:'Semakin lama waktu pengerjaan salah satunya karena revisi, akan menambah biaya untuk salary tim'},
+  {cat:'Orang',prob:'high',impact:'med',desc:'Membutuhkan waktu untuk mempelajari pendalaman sistem'},
+  {cat:'Orang',prob:'high',impact:'med',desc:'Keterbatasan SDM untuk menggunakan sistem berbasis teknologi'},
+  {cat:'Scope',prob:'high',impact:'high',desc:'Penambahan permintaan dari user yang terlalu banyak'},
+  {cat:'Orang',prob:'high',impact:'high',desc:'Keterbatasan waktu pembuatan sistem'},
+];
+
+function load() {
+  try { const s = localStorage.getItem('pim-v2'); risks = s ? JSON.parse(s) : [...DEFAULT]; }
+  catch(e) { risks = [...DEFAULT]; }
+}
+function save() { try { localStorage.setItem('pim-v2', JSON.stringify(risks)); } catch(e){} }
+
+function render() {
+  const body = document.getElementById('matrix-body');
+  body.innerHTML = '';
+
+  ROWS.forEach((prob, ri) => {
+    const isLast = ri === 2;
+    const tr = document.createElement('tr');
+
+    // Row label cell
+    const tdL = document.createElement('td');
+    tdL.className = `text-sm font-bold text-slate-700 px-4 py-4 border-r border-slate-100 bg-slate-50 align-middle whitespace-nowrap ${isLast ? '' : 'border-b border-slate-100'}`;
+    tdL.textContent = ROW_LABELS[prob];
+    tr.appendChild(tdL);
+
+    ['low','med','high'].forEach((impact, ci) => {
+      const td = document.createElement('td');
+      const isLastCol = ci === 2;
+      const st = IMP_STYLE[impact];
+      td.className = `align-top p-3 ${isLast ? '' : 'border-b border-slate-100'} ${isLastCol ? '' : 'border-r border-slate-100'} ${st.topBorder}`;
+
+      const items = risks.filter(r => r.prob === prob && r.impact === impact);
+      let html = '';
+
+      if (!items.length) {
+        html += `<p class="text-[11px] text-slate-300 italic px-1 py-2 mb-1">Belum ada risiko</p>`;
+      } else {
+        items.forEach(item => {
+          const gi = risks.indexOf(item);
+          html += `
+            <div class="risk-card group bg-white border border-slate-200 rounded-xl p-3 mb-2" data-gi="${gi}">
+              <div class="flex items-start gap-2">
+                <div class="flex-1 min-w-0">
+                  <span class="inline-block text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full mb-1.5 ${st.tag}">${item.cat}</span>
+                  <p class="text-[12px] text-slate-600 leading-relaxed">${item.desc || '<span class=\'text-slate-300 italic\'>Tanpa deskripsi</span>'}</p>
+                </div>
+                <div class="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                  <button onclick="openEdit(${gi})" title="Edit"  class="w-6 h-6 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center text-xs transition-colors">✎</button>
+                  <button onclick="deleteRisk(${gi})" title="Hapus" class="w-6 h-6 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-500 flex items-center justify-center text-xs transition-colors">✕</button>
+                </div>
+              </div>
+            </div>`;
+        });
+      }
+
+      html += `<button onclick="quickAdd('${prob}','${impact}')" class="w-full border border-dashed border-slate-200 text-slate-300 hover:border-indigo-300 hover:text-indigo-400 rounded-xl py-2 text-[11px] font-semibold transition-all mt-1">+ tambah</button>`;
+      td.innerHTML = html;
+      tr.appendChild(td);
+    });
+
+    body.appendChild(tr);
+  });
+
+  document.getElementById('stat-total').textContent = risks.length;
+  document.getElementById('stat-low').textContent   = risks.filter(r=>r.impact==='low').length;
+  document.getElementById('stat-med').textContent   = risks.filter(r=>r.impact==='med').length;
+  document.getElementById('stat-high').textContent  = risks.filter(r=>r.impact==='high').length;
+}
+
+function quickAdd(prob, impact) {
+  document.getElementById('f-prob').value = prob;
+  document.getElementById('f-impact').value = impact;
+  switchTab('form');
+  setTimeout(() => document.getElementById('f-cat').focus(), 60);
+}
+
+function addRisk() {
+  const cat    = document.getElementById('f-cat').value.trim();
+  const desc   = document.getElementById('f-desc').value.trim();
+  const prob   = document.getElementById('f-prob').value;
+  const impact = document.getElementById('f-impact').value;
+  if (!cat && !desc) { document.getElementById('f-cat').focus(); return; }
+  risks.push({ cat: cat || '(tanpa kategori)', prob, impact, desc });
+  document.getElementById('f-cat').value = '';
+  document.getElementById('f-desc').value = '';
+  save(); render();
+  switchTab('matrix');
+  showToast('Risiko berhasil ditambahkan');
+}
+
+function deleteRisk(idx) {
+  if (!confirm('Hapus risiko ini?')) return;
+  risks.splice(idx, 1);
+  save(); render();
+  showToast('Risiko dihapus');
+}
+
+function openEdit(idx) {
+  editIdx = idx;
+  const r = risks[idx];
+  document.getElementById('e-cat').value   = r.cat;
+  document.getElementById('e-prob').value  = r.prob;
+  document.getElementById('e-impact').value= r.impact;
+  document.getElementById('e-desc').value  = r.desc;
+  const bd = document.getElementById('modal-backdrop');
+  bd.classList.remove('hidden');
+  bd.classList.add('flex');
+  setTimeout(() => document.getElementById('e-cat').focus(), 60);
+}
+
+function closeModalBg(e) { if (e.target.id === 'modal-backdrop') closeModal(); }
+function closeModal() {
+  const bd = document.getElementById('modal-backdrop');
+  bd.classList.add('hidden'); bd.classList.remove('flex');
+  editIdx = null;
+}
+
+function saveEdit() {
+  if (editIdx === null) return;
+  risks[editIdx] = {
+    cat:    document.getElementById('e-cat').value.trim()   || '(tanpa kategori)',
+    prob:   document.getElementById('e-prob').value,
+    impact: document.getElementById('e-impact').value,
+    desc:   document.getElementById('e-desc').value.trim()
+  };
+  closeModal(); save(); render();
+  showToast('Perubahan disimpan');
+}
+
+function clearAll() {
+  if (!confirm('Hapus semua risiko? Tidak bisa dibatalkan.')) return;
+  risks = []; save(); render();
+  showToast('Semua risiko dihapus');
+}
+
+function switchTab(tab) {
+  const isMatrix = tab === 'matrix';
+  document.getElementById('sec-matrix').classList.toggle('hidden', !isMatrix);
+  document.getElementById('sec-form').classList.toggle('hidden', isMatrix);
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    const active = (i===0 && isMatrix) || (i===1 && !isMatrix);
+    b.className = `tab-btn px-5 py-2 rounded-lg text-sm font-semibold transition-all ${active ? 'bg-white text-slate-800 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`;
+  });
+}
+
+function exportCSV() {
+  const hdr  = 'Kategori,Probabilitas,Impact,Deskripsi\n';
+  const rows = risks.map(r => `"${r.cat}","${ROW_LABELS[r.prob]}","${COL_LABELS[r.impact]}","${r.desc.replace(/"/g,'""')}"`).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\uFEFF'+hdr+rows], {type:'text/csv;charset=utf-8'}));
+  a.download = 'probability_impact_matrix.csv';
+  a.click();
+  showToast('CSV berhasil di-download');
+}
+
+function printMatrix() { window.print(); }
+
+let _toastT;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.opacity = '1'; t.style.transform = 'translateY(0)';
+  clearTimeout(_toastT);
+  _toastT = setTimeout(() => { t.style.opacity='0'; t.style.transform='translateY(8px)'; }, 2500);
+}
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey||e.metaKey) && e.key==='Enter') {
+    if (!document.getElementById('sec-form').classList.contains('hidden'))    addRisk();
+    else if (document.getElementById('modal-backdrop').classList.contains('flex')) saveEdit();
+  }
+  if (e.key==='Escape') closeModal();
+});
+
+load();
+switchTab('matrix');
+render();
+</script>
+</body>
+</html>
